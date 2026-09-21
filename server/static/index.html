@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CopilotBrief — Streaming Live RAG</title>
+<style>
+  :root {
+    --bg: #070d1a;
+    --bg-2: #0a1220;
+    --panel: #101a2e;
+    --panel-2: #0b1424;
+    --panel-3: #0d1730;
+    --border: #1e2f4d;
+    --border-soft: #16233b;
+    --text: #e9eefb;
+    --muted: #8ba0c4;
+    --muted-2: #5e769c;
+    --accent: #2fe0c8;
+    --accent-dim: #16897a;
+    --accent-2: #5b9dff;
+    --purple: #b18aff;
+    --warn: #ffb454;
+    --bad: #ff6b81;
+    --good: #3fdb96;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text); font-size: 14px;
+  }
+  a { color: var(--accent-2); }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* ---------- Header ---------- */
+  .hero {
+    position: relative; overflow: hidden;
+    background:
+      radial-gradient(ellipse 900px 260px at 15% -40%, rgba(91,157,255,.28), transparent 60%),
+      radial-gradient(ellipse 700px 220px at 85% -30%, rgba(47,224,200,.22), transparent 60%),
+      linear-gradient(180deg, #0c1830 0%, #081120 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 22px 28px 18px;
+  }
+  .hero-plane {
+    position: absolute; right: 26px; top: 14px; width: 120px; height: 70px; opacity: .5;
+    pointer-events: none;
+  }
+  .hero-top { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 10px; position: relative; z-index: 1; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-mark {
+    width: 42px; height: 42px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); font-size: 20px; flex: none;
+    box-shadow: 0 0 24px rgba(47,224,200,.35);
+  }
+  .brand h1 { margin: 0; font-size: 22px; letter-spacing: .01em; }
+  .brand h1 b { color: var(--accent); font-weight: 700; }
+  .brand .tagline { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .prism-badge {
+    display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  }
+  .prism-badge .pill {
+    background: rgba(91,157,255,.12); border: 1px solid rgba(91,157,255,.35); color: #bcd4ff;
+    padding: 5px 12px; border-radius: 999px; font-size: 11px; letter-spacing: .06em; font-weight: 600;
+  }
+  .prism-badge .micro {
+    font-size: 10.5px; letter-spacing: .18em; color: var(--muted-2); font-weight: 700;
+  }
+
+  /* ---------- Status bar ---------- */
+  .statusbar {
+    display: flex; align-items: center; gap: 18px; padding: 12px 28px; flex-wrap: wrap;
+    background: var(--bg-2); border-bottom: 1px solid var(--border);
+  }
+  .status-item { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+  .status-item b { color: var(--text); font-weight: 600; }
+  .status-sep { width: 1px; height: 16px; background: var(--border); }
+  .live-badge {
+    display: inline-flex; align-items: center; gap: 6px; background: rgba(255,107,129,.12);
+    border: 1px solid rgba(255,107,129,.4); color: #ff8fa0; padding: 4px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: .05em;
+  }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--bad); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255,107,129,.5); } 50% { opacity: .55; box-shadow: 0 0 0 5px rgba(255,107,129,0); } }
+  .spacer { flex: 1; }
+  button {
+    background: var(--panel-3); color: var(--text); border: 1px solid var(--border);
+    padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 12.5px; font-weight: 500;
+    transition: border-color .15s, color .15s;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: linear-gradient(135deg, var(--accent), var(--accent-dim)); color: #04231d; border-color: transparent; font-weight: 700; }
+  button.primary:hover { color: #04231d; filter: brightness(1.08); }
+  button.ghost { background: transparent; }
+  button.icon-btn { padding: 8px 10px; font-size: 15px; line-height: 1; }
+  button:disabled { opacity: .45; cursor: default; }
+  button:disabled:hover { border-color: var(--border); color: var(--text); }
+
+  /* ---------- Pill row ---------- */
+  .pillrow { display: flex; align-items: center; gap: 8px; padding: 12px 28px; flex-wrap: wrap; border-bottom: 1px solid var(--border); }
+  .info-pill {
+    display: flex; flex-direction: column; gap: 1px; background: var(--panel-2); border: 1px solid var(--border-soft);
+    border-radius: 9px; padding: 6px 12px; min-width: 84px;
+  }
+  .info-pill .k { font-size: 9.5px; letter-spacing: .1em; color: var(--muted-2); text-transform: uppercase; font-weight: 700; }
+  .info-pill .v { font-size: 12.5px; font-weight: 600; color: var(--text); }
+  .pillrow-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
+  .scenario-btn {
+    border-radius: 9px; padding: 8px 14px; font-size: 12px; background: var(--panel-2);
+  }
+  .scenario-btn.active { background: rgba(47,224,200,.14); border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- Main layout ---------- */
+  .layout {
+    display: grid; grid-template-columns: 1.05fr 1.3fr 1fr; gap: 14px; padding: 14px 20px; align-items: start;
+  }
+  @media (max-width: 1180px) { .layout { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .panel-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 13px 16px; border-bottom: 1px solid var(--border-soft);
+  }
+  .panel-head h2 {
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); margin: 0;
+    display: flex; align-items: center; gap: 7px; font-weight: 700;
+  }
+  .panel-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .count-chip {
+    font-size: 10.5px; background: var(--panel-2); border: 1px solid var(--border-soft); color: var(--muted);
+    padding: 2px 8px; border-radius: 999px; font-weight: 600;
+  }
+
+  /* ---------- Left: transcript ---------- */
+  #stream { max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .chunk-row { display: flex; gap: 9px; align-items: flex-start; font-size: 12.5px; }
+  .chunk-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted-2); margin-top: 6px; flex: none; }
+  .chunk-body { flex: 1; min-width: 0; }
+  .chunk-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+  .ts { color: var(--muted-2); font-variant-numeric: tabular-nums; font-size: 10.5px; }
+  .chunk-text { color: var(--text); line-height: 1.4; }
+  .chunk-text em { color: var(--muted); font-style: normal; }
+  .badge {
+    font-size: 9.5px; padding: 2px 7px; border-radius: 999px; text-transform: uppercase;
+    letter-spacing: .04em; white-space: nowrap; font-weight: 700; border: 1px solid transparent;
+  }
+  .badge.wait { background: #2c2210; color: var(--warn); border-color: rgba(255,180,84,.3); }
+  .badge.provisional_retrieve { background: #0f2438; color: var(--accent-2); border-color: rgba(91,157,255,.3); }
+  .badge.multi_intent_retrieve { background: #0f2a22; color: var(--good); border-color: rgba(63,219,150,.3); }
+  .badge.no_retrieval { background: #2a1530; color: var(--purple); border-color: rgba(177,138,255,.3); }
+  .empty-note { color: var(--muted-2); font-size: 12.5px; padding: 6px 0; }
+
+  .mic-row { display: flex; gap: 8px; align-items: center; }
+  .mic-row input[type=text] {
+    flex: 1; min-width: 0; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 9px 12px; font-size: 12.5px; font-family: inherit;
+  }
+  .mic-row input[type=text]:focus { outline: none; border-color: var(--accent); }
+  .mic-row .mic-icon { font-size: 15px; }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row button { flex: 1; }
+
+  /* ---------- Controller state machine ---------- */
+  .sm-row { display: flex; align-items: center; }
+  .sm-node {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; min-width: 0;
+  }
+  .sm-dot {
+    width: 28px; height: 28px; border-radius: 50%; background: var(--panel-2); border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--muted-2);
+    transition: all .2s;
+  }
+  .sm-label { font-size: 8.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted-2); text-align: center; font-weight: 700; }
+  .sm-line { flex: 0 0 14px; height: 2px; background: var(--border); margin-bottom: 20px; }
+  .sm-node.done .sm-dot { border-color: var(--accent-dim); background: rgba(47,224,200,.12); color: var(--accent); }
+  .sm-node.done .sm-label { color: var(--accent); }
+  .sm-node.done + .sm-line, .sm-line.done { background: var(--accent-dim); }
+  .sm-node.active .sm-dot { border-color: var(--accent); background: var(--accent); color: #04231d; box-shadow: 0 0 14px rgba(47,224,200,.5); }
+  .sm-node.active .sm-label { color: var(--text); }
+  .sm-node.active.presentation .sm-dot { border-color: var(--purple); background: var(--purple); box-shadow: 0 0 14px rgba(177,138,255,.5); }
+  .sm-node.active.refine .sm-dot { border-color: var(--warn); background: var(--warn); box-shadow: 0 0 14px rgba(255,180,84,.5); }
+
+  .state-box { background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: 9px; padding: 10px 12px; }
+  .state-box .k { font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-2); font-weight: 700; margin-bottom: 3px; }
+  .state-box .v { font-size: 12.5px; font-weight: 600; }
+  .state-box .v.reason { font-weight: 400; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+
+  /* ---------- Center: AI Copilot ---------- */
+  .answer-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .grounded-badge {
+    display: inline-flex; align-items: center; gap: 6px; background: rgba(63,219,150,.12); border: 1px solid rgba(63,219,150,.35);
+    color: var(--good); padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  }
+  .version-badge {
+    display: inline-flex; align-items: center; gap: 6px; background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--muted); padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  }
+  .version-badge .active-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+  .intent-section h3, .section-label {
+    font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-2); font-weight: 700; margin: 0 0 8px;
+  }
+  .intent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .intent-card {
+    background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: 9px; padding: 10px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .intent-card .num-icon { display: flex; align-items: center; gap: 6px; }
+  .intent-card .num { width: 18px; height: 18px; border-radius: 5px; background: rgba(91,157,255,.15); color: var(--accent-2);
+    font-size: 10.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex: none; }
+  .intent-card .ico { font-size: 15px; }
+  .intent-card .label { font-size: 11.5px; line-height: 1.35; color: var(--text); font-weight: 500; }
+  .intent-card .arrow-doc { font-size: 10.5px; color: var(--muted-2); display: flex; align-items: center; gap: 4px; margin-top: auto; }
+  .intent-card .arrow-doc .doc-chip { background: var(--panel-3); color: var(--accent); border: 1px solid var(--border); padding: 1px 6px; border-radius: 5px; font-weight: 700; font-size: 10px; }
+  .intent-card.unsupported { border-color: rgba(255,107,129,.3); }
+  .intent-card.unsupported .num { background: rgba(255,107,129,.15); color: var(--bad); }
+
+  #briefingText { display: flex; flex-direction: column; gap: 10px; }
+  .claim-line { font-size: 13.5px; line-height: 1.6; }
+  .claim-line .chips { display: inline-flex; gap: 5px; margin-left: 6px; vertical-align: middle; }
+  .cite-chip {
+    font-size: 10px; background: var(--panel-3); border: 1px solid var(--border); color: var(--accent-2);
+    padding: 2px 7px; border-radius: 6px; font-weight: 700; white-space: nowrap;
+  }
+  .claim-line.unsupported { color: var(--warn); font-style: italic; }
+  .uncertainty {
+    padding: 9px 12px; border-radius: 9px; background: rgba(255,180,84,.08); border: 1px solid rgba(255,180,84,.3);
+    color: var(--warn); font-size: 12px; line-height: 1.5;
+  }
+
+  .refine-box { background: var(--panel-2); border: 1px solid rgba(255,180,84,.3); border-radius: 10px; padding: 12px; display: none; }
+  .refine-box.show { display: flex; flex-direction: column; gap: 10px; }
+  .refine-title { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--warn); font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .refine-steps { display: flex; flex-direction: column; gap: 6px; }
+  .refine-step { display: flex; gap: 10px; align-items: flex-start; font-size: 12px; }
+  .refine-step .tag { flex: none; width: 78px; font-size: 9.5px; letter-spacing: .05em; text-transform: uppercase; font-weight: 700; color: var(--muted-2); padding-top: 2px; }
+  .refine-step.prev .tag { color: var(--muted-2); }
+  .refine-step.new .tag { color: var(--accent-2); }
+  .refine-step.updated .tag { color: var(--good); }
+  .refine-step .txt { flex: 1; line-height: 1.5; }
+  .refine-step.prev .txt { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(255,107,129,.5); }
+  .refine-step.new .txt { color: var(--accent-2); font-style: italic; }
+  .refine-step.updated .txt { color: var(--good); }
+  .refine-arrow { text-align: center; color: var(--muted-2); font-size: 12px; }
+
+  /* ---------- Right: Evidence ---------- */
+  #evidenceList { display: flex; flex-direction: column; gap: 10px; max-height: 640px; overflow-y: auto; }
+  .evidence-card { background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: 10px; padding: 11px 12px; }
+  .evidence-head { display: flex; align-items: flex-start; gap: 8px; }
+  .doc-badge { font-size: 15px; flex: none; margin-top: 1px; }
+  .evidence-titles { flex: 1; min-width: 0; }
+  .evidence-titles .doc-title { font-size: 12.5px; font-weight: 700; color: var(--text); }
+  .evidence-titles .section-title { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .used-check {
+    font-size: 9px; letter-spacing: .04em; font-weight: 800; color: var(--good); background: rgba(63,219,150,.12);
+    border: 1px solid rgba(63,219,150,.3); padding: 3px 7px; border-radius: 999px; white-space: nowrap; flex: none;
+  }
+  .evidence-excerpt {
+    margin-top: 8px; font-size: 12px; line-height: 1.55; color: var(--muted); padding-left: 9px;
+    border-left: 2px solid var(--border); font-style: italic;
+  }
+  .evidence-foot { margin-top: 8px; display: flex; align-items: center; justify-content: space-between; }
+  .view-source-btn { background: none; border: none; color: var(--accent-2); font-size: 11px; padding: 0; cursor: pointer; font-weight: 600; }
+  .view-source-btn:hover { text-decoration: underline; color: var(--accent-2); }
+  .also-in-doc { display: none; margin-top: 7px; font-size: 11px; color: var(--muted-2); line-height: 1.6; }
+  .also-in-doc.show { display: block; }
+  .also-in-doc b { color: var(--muted); }
+
+  /* ---------- Bottom: observability ---------- */
+  .observability {
+    margin: 4px 20px 20px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+  }
+  .obs-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; cursor: pointer; }
+  .obs-head h2 { margin: 0; font-size: 11.5px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); font-weight: 700; display: flex; gap: 7px; align-items: center; }
+  .chevron { color: var(--muted-2); transition: transform .2s; font-size: 12px; }
+  .chevron.open { transform: rotate(180deg); }
+  .obs-tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; padding: 0 18px 16px; }
+  @media (max-width: 900px) { .obs-tiles { grid-template-columns: repeat(3, 1fr); } }
+  .obs-tile { background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: 9px; padding: 10px 12px; }
+  .obs-tile .n { font-size: 19px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+  .obs-tile .l { font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-2); font-weight: 700; margin-top: 2px; }
+  .obs-raw { display: none; padding: 0 18px 18px; }
+  .obs-raw.show { display: block; }
+  pre#telemetryRaw {
+    background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: 8px;
+    padding: 12px; font-size: 11px; overflow-x: auto; max-height: 300px; overflow-y: auto; margin: 0;
+  }
+  .icon-i { opacity: .85; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <svg class="hero-plane" viewBox="0 0 140 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M8 46 L96 36 L128 20 L134 24 L112 42 L134 46 L128 52 L98 48 L70 60 L82 62 L78 68 L58 64 L44 68 L38 62 L50 56 L8 52 Z"
+      fill="#5b9dff" opacity="0.55"/>
+  </svg>
+  <div class="hero-top">
+    <div class="brand">
+      <div class="brand-mark">🛫</div>
+      <div>
+        <h1>Copilot<b>Brief</b></h1>
+        <div class="tagline">Streaming Live RAG for Aviation Pre-Flight Briefings</div>
+      </div>
+    </div>
+    <div class="prism-badge">
+      <div class="pill">SAMSUNG PRISM · GenAI Hackathon 3.0 · Theme 4</div>
+      <div class="micro">SAFER FLIGHTS · SMARTER BRIEFINGS</div>
+    </div>
+  </div>
+</div>
+
+<div class="statusbar">
+  <div class="status-item">✈ <b>Flight CB-402</b></div>
+  <div class="status-sep"></div>
+  <div class="status-item">Aircraft <b>A320</b></div>
+  <div class="status-sep"></div>
+  <div class="status-item">Route <b>DEL → SIN</b></div>
+  <div class="status-sep"></div>
+  <div class="status-item">Session <b id="sessionIdLabel">—</b></div>
+  <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+  <div class="spacer"></div>
+  <div class="status-item">Backend: <b id="backendLabel">connecting…</b></div>
+  <button class="primary" id="newSessionBtn" onclick="resetSession()">+ New Session</button>
+  <button class="icon-btn ghost" id="gearBtn" title="Session info">⚙</button>
+</div>
+
+<div class="pillrow">
+  <div class="info-pill"><span class="k">Phase</span><span class="v" id="phasePill">Pre-Flight Dispatch</span></div>
+  <div class="info-pill"><span class="k">Briefing</span><span class="v" id="briefingStatusPill">Idle</span></div>
+  <div class="info-pill"><span class="k">Corpus Docs</span><span class="v" id="corpusCountPill">—</span></div>
+  <div class="pillrow-sep"></div>
+  <button class="scenario-btn active" id="btn-multi_intent" onclick="runScenario('multi_intent')">▶ Multi-Intent</button>
+  <button class="scenario-btn" id="btn-late_refinement" onclick="runScenario('late_refinement')">▶ Late Refinement</button>
+  <button class="scenario-btn" id="btn-query_suppression" onclick="runScenario('query_suppression')">▶ Query Suppression</button>
+</div>
+
+<div class="layout">
+
+  <!-- LEFT: Live transcript + controller -->
+  <div class="panel">
+    <div class="panel-head"><h2>🎙 Live Transcript</h2></div>
+    <div class="panel-body">
+      <div id="scenarioDesc" class="empty-note"></div>
+      <div id="stream"><div class="empty-note">No transcript yet — run a scenario or send a fragment below.</div></div>
+      <div class="mic-row">
+        <span class="mic-icon">🎤</span>
+        <input type="text" id="manualText" placeholder="Type a transcript fragment…">
+      </div>
+      <div class="btn-row">
+        <button onclick="sendManualChunk(false)">Send Chunk</button>
+        <button onclick="sendManualChunk(true)">End Utterance</button>
+      </div>
+    </div>
+    <div class="panel-head" style="border-top:1px solid var(--border-soft);"><h2>🧭 Retrieval Controller</h2></div>
+    <div class="panel-body">
+      <div class="sm-row" id="stateMachine">
+        <div class="sm-node" data-node="wait"><div class="sm-dot">1</div><div class="sm-label">Wait</div></div>
+        <div class="sm-line"></div>
+        <div class="sm-node" data-node="provisional"><div class="sm-dot">2</div><div class="sm-label">Provisional</div></div>
+        <div class="sm-line"></div>
+        <div class="sm-node" data-node="multi_intent"><div class="sm-dot">3</div><div class="sm-label">Multi-Intent</div></div>
+        <div class="sm-line"></div>
+        <div class="sm-node" data-node="synthesize"><div class="sm-dot">4</div><div class="sm-label">Synthesize</div></div>
+        <div class="sm-line"></div>
+        <div class="sm-node" data-node="refine"><div class="sm-dot">5</div><div class="sm-label">Refine</div></div>
+      </div>
+      <div class="state-box"><div class="k">Current State</div><div class="v" id="currentStateText">WAIT — session idle</div></div>
+      <div class="state-box"><div class="k">Reason</div><div class="v reason" id="currentReasonText">—</div></div>
+    </div>
+  </div>
+
+  <!-- CENTER: AI Copilot briefing -->
+  <div class="panel">
+    <div class="panel-head">
+      <h2>🧠 AI Copilot</h2>
+      <div class="answer-badges">
+        <span class="grounded-badge" id="groundedBadge">Grounded Response · 0 citations</span>
+        <span class="version-badge" id="versionBadge"><span class="active-dot"></span>v0</span>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="intent-section" id="intentSection" style="display:none;">
+        <h3 id="intentSectionLabel">Intent Detected</h3>
+        <div class="intent-grid" id="intentGrid"></div>
+      </div>
+      <div>
+        <div class="section-label">AI Briefing</div>
+        <div id="briefingText"><div class="empty-note">No briefing yet — run a scenario or send a transcript fragment.</div></div>
+      </div>
+      <div class="uncertainty" id="uncertaintyBox" style="display:none;"></div>
+      <div class="refine-box" id="refineBox">
+        <div class="refine-title">⚡ Live Refinement — claim updated in place</div>
+        <div class="refine-steps">
+          <div class="refine-step prev"><span class="tag">Previous v<span id="refinePrevVersion"></span></span><span class="txt" id="refinePrevText"></span></div>
+          <div class="refine-arrow">↓</div>
+          <div class="refine-step new"><span class="tag">New Info</span><span class="txt" id="refineNewInfo"></span></div>
+          <div class="refine-arrow">↓</div>
+          <div class="refine-step updated"><span class="tag">Updated v<span id="refineNewVersion"></span></span><span class="txt" id="refineNewText"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Evidence -->
+  <div class="panel">
+    <div class="panel-head">
+      <h2>📚 Evidence</h2>
+      <span class="count-chip" id="evidenceCounts">0 intents · 0 docs · 0 citations</span>
+    </div>
+    <div class="panel-body">
+      <div id="evidenceList"><div class="empty-note">Grounded source excerpts will appear here once an answer is synthesized.</div></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="observability">
+  <div class="obs-head" onclick="toggleObsRaw()">
+    <h2>📡 System Observability</h2>
+    <span class="chevron" id="obsChevron">▾</span>
+  </div>
+  <div class="obs-tiles">
+    <div class="obs-tile"><div class="n" id="tileRetrieval">0</div><div class="l">Retrieval Events</div></div>
+    <div class="obs-tile"><div class="n" id="tileIntents">0</div><div class="l">Intents</div></div>
+    <div class="obs-tile"><div class="n" id="tileDocs">0</div><div class="l">Documents</div></div>
+    <div class="obs-tile"><div class="n" id="tileCitations">0</div><div class="l">Citations</div></div>
+    <div class="obs-tile"><div class="n" id="tileVersion">0</div><div class="l">Answer Version</div></div>
+    <div class="obs-tile"><div class="n" id="tileLatency">—</div><div class="l">Latency</div></div>
+  </div>
+  <div class="obs-raw" id="obsRaw">
+    <pre id="telemetryRaw">{}</pre>
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------
+let sessionId = "web-" + Math.random().toString(36).slice(2, 10);
+let ws;
+let manualClock = 0;
+let activeScenarioKey = "multi_intent";
+
+let corpusCatalog = [];
+let docIndex = new Map();   // doc_id -> {title, sections: Map(section_id -> section_title)}
+
+let claimHistory = new Map(); // claim_id -> {text, version, sub_query, citations}
+let lastClaims = [];
+let lastAnswer = null;
+let lastControllerDecision = null;
+let lastReason = "";
+let lastSynthesisMode = null;
+let lastProcessingMs = null;
+let refinementDiff = null;
+let telemetryRecord = {};
+
+const TOPIC_ICONS = [
+  [/crosswind|wind|gust/i, "🌬"],
+  [/de-?ice|icing|freez|contamina/i, "❄"],
+  [/fuel|diversion|reserve/i, "⛽"],
+  [/weather|visibility|convective|storm/i, "🌦"],
+  [/holding/i, "🕐"],
+  [/notam/i, "📋"],
+  [/international|domestic/i, "🌍"],
+  [/alternate/i, "🛬"],
+  [/runway/i, "🛫"],
+  [/dispatch|release/i, "📄"],
+  [/fdtl|duty|rest/i, "⏱"],
+  [/mel|rectif/i, "🔧"],
+  [/emergency/i, "🚨"],
+];
+function iconFor(text) {
+  for (const [re, icon] of TOPIC_ICONS) if (re.test(text)) return icon;
+  return "ℹ";
+}
+function escapeHtml(s) {
+  return (s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+function shortCitation(c) { return c; } // already "Doc_XX §N"
+
+// ---------------------------------------------------------------------
+// Bootstrapping: corpus catalog + health
+// ---------------------------------------------------------------------
+function loadCorpus() {
+  fetch("/api/corpus").then(r => r.json()).then(list => {
+    corpusCatalog = list;
+    docIndex = new Map();
+    list.forEach(d => {
+      const sections = new Map();
+      (d.sections || []).forEach(s => sections.set(s.section_id, s.section_title));
+      docIndex.set(d.doc_id, { title: d.title, sections });
+    });
+    document.getElementById("corpusCountPill").textContent = list.length + " docs";
+  }).catch(() => {});
+}
+function loadHealth() {
+  fetch("/api/health").then(r => r.json()).then(d => {
+    document.getElementById("backendLabel").textContent = d.dense_backend + " · connected";
+  }).catch(() => {
+    document.getElementById("backendLabel").textContent = "unreachable";
+  });
+}
+
+function docTitle(docId) { return (docIndex.get(docId) || {}).title || docId; }
+function sectionTitle(docId, sectionId) {
+  const d = docIndex.get(docId);
+  if (!d) return "";
+  return d.sections.get(sectionId) || "";
+}
+function parseCitation(c) {
+  const idx = c.indexOf(" §");
+  if (idx === -1) return { docId: c, sectionId: "" };
+  return { docId: c.slice(0, idx), sectionId: c.slice(idx + 2) };
+}
+
+// ---------------------------------------------------------------------
+// WebSocket
+// ---------------------------------------------------------------------
+function connect() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}/ws/${sessionId}`);
+  ws.onmessage = (ev) => handleEvent(JSON.parse(ev.data));
+  ws.onopen = () => { document.getElementById("sessionIdLabel").textContent = sessionId; };
+  ws.onclose = () => setTimeout(connect, 1000);
+}
+connect();
+loadCorpus();
+loadHealth();
+
+// ---------------------------------------------------------------------
+// Event handling
+// ---------------------------------------------------------------------
+function handleEvent(ev) {
+  if (ev.event === "scenario_start") {
+    fullReset();
+    activeScenarioKey = ev.key;
+    document.querySelectorAll(".scenario-btn").forEach(b => b.classList.remove("active"));
+    const btn = document.getElementById("btn-" + ev.key);
+    if (btn) btn.classList.add("active");
+    document.getElementById("scenarioDesc").textContent = ev.description;
+    sessionId = ev.session_id;
+    document.getElementById("sessionIdLabel").textContent = sessionId;
+    setBriefingStatus("Listening");
+  } else if (ev.event === "step") {
+    addTranscriptRow(ev);
+    lastControllerDecision = ev.controller_decision;
+    lastReason = ev.controller_reason;
+    lastSynthesisMode = ev.synthesis_mode;
+    lastProcessingMs = ev.processing_ms;
+    if (ev.claims) {
+      computeRefinementDiff(ev.claims, ev.chunk_text);
+      lastClaims = ev.claims;
+    }
+    if (ev.answer) lastAnswer = ev.answer;
+    updateControllerStateMachine();
+    renderIntentCards();
+    renderBriefing();
+    renderRefinementBox();
+    renderEvidence();
+    renderObservabilityTiles();
+    setBriefingStatus(briefingStatusFor());
+  } else if (ev.event === "telemetry") {
+    telemetryRecord = ev;
+    renderObservabilityTiles();
+    document.getElementById("telemetryRaw").textContent = JSON.stringify(ev, null, 2);
+  } else if (ev.event === "reset_ack") {
+    fullReset();
+  } else if (ev.event === "error") {
+    console.warn("server error:", ev.message);
+  }
+}
+
+function briefingStatusFor() {
+  if (lastSynthesisMode === "refinement") return "Refining";
+  if (lastSynthesisMode === "presentation") return "Reformatting";
+  if (lastControllerDecision === "multi_intent_retrieve" || lastControllerDecision === "provisional_retrieve") return "Grounded";
+  if (lastControllerDecision === "wait") return "Listening";
+  return "Idle";
+}
+function setBriefingStatus(text) {
+  document.getElementById("briefingStatusPill").textContent = text;
+}
+
+// ---------------------------------------------------------------------
+// Transcript
+// ---------------------------------------------------------------------
+function addTranscriptRow(ev) {
+  const stream = document.getElementById("stream");
+  const emptyNote = stream.querySelector(".empty-note");
+  if (emptyNote) emptyNote.remove();
+  const row = document.createElement("div");
+  row.className = "chunk-row";
+  row.innerHTML = `
+    <div class="chunk-dot"></div>
+    <div class="chunk-body">
+      <div class="chunk-meta">
+        <span class="ts">${ev.timestamp_s.toFixed(1)}s</span>
+        <span class="badge ${ev.controller_decision}">${ev.controller_decision.replace(/_/g,' ')}</span>
+      </div>
+      <div class="chunk-text">"${escapeHtml(ev.chunk_text)}"${ev.is_utterance_end ? " <em>[utterance end]</em>" : ""}</div>
+    </div>
+  `;
+  stream.appendChild(row);
+  stream.scrollTop = stream.scrollHeight;
+}
+
+// ---------------------------------------------------------------------
+// Controller state machine
+// ---------------------------------------------------------------------
+const NODE_ORDER = ["wait", "provisional", "multi_intent", "synthesize", "refine"];
+function updateControllerStateMachine() {
+  let activeNode = "wait";
+  let modifier = "";
+  let stateLabel = "WAIT — awaiting stable entity";
+
+  if (lastSynthesisMode === "refinement") {
+    activeNode = "refine"; modifier = "refine";
+    stateLabel = "REFINE — claim updated in place";
+  } else if (lastSynthesisMode === "presentation") {
+    activeNode = "synthesize"; modifier = "presentation";
+    stateLabel = "NO RETRIEVAL — reformatting existing context";
+  } else if (lastSynthesisMode === "multi_intent") {
+    activeNode = "synthesize";
+    stateLabel = "SYNTHESIZE — multi-intent answer built";
+  } else if (lastSynthesisMode === "provisional" || lastSynthesisMode === "utterance_end_fallback") {
+    activeNode = "synthesize";
+    stateLabel = "SYNTHESIZE — grounded answer built";
+  } else if (lastControllerDecision === "multi_intent_retrieve") {
+    activeNode = "multi_intent";
+    stateLabel = "MULTI-INTENT RETRIEVE — decomposing sub-queries";
+  } else if (lastControllerDecision === "provisional_retrieve") {
+    activeNode = "provisional";
+    stateLabel = "PROVISIONAL RETRIEVE — stable entity identified";
+  } else if (lastControllerDecision === "wait") {
+    activeNode = "wait";
+    stateLabel = "WAIT — " + (lastReason || "awaiting stable entity").replace(/_/g, " ");
+  }
+
+  const activeIdx = NODE_ORDER.indexOf(activeNode);
+  document.querySelectorAll(".sm-node").forEach(el => {
+    const idx = NODE_ORDER.indexOf(el.dataset.node);
+    el.classList.remove("done", "active", "refine", "presentation");
+    if (idx < activeIdx) el.classList.add("done");
+    else if (idx === activeIdx) { el.classList.add("active"); if (modifier) el.classList.add(modifier); }
+  });
+
+  document.getElementById("currentStateText").textContent = stateLabel;
+  document.getElementById("currentReasonText").textContent = lastReason || "—";
+}
+
+// ---------------------------------------------------------------------
+// Intent cards
+// ---------------------------------------------------------------------
+function renderIntentCards() {
+  const section = document.getElementById("intentSection");
+  const grid = document.getElementById("intentGrid");
+  if (!lastClaims.length) { section.style.display = "none"; grid.innerHTML = ""; return; }
+  section.style.display = "block";
+  document.getElementById("intentSectionLabel").textContent =
+    lastClaims.length > 1 ? `Multi-Intent Detected (${lastClaims.length})` : "Intent Detected";
+  grid.innerHTML = lastClaims.map((c, i) => {
+    const primaryDoc = (c.citations && c.citations[0]) ? c.citations[0] : null;
+    return `
+      <div class="intent-card ${c.supported ? "" : "unsupported"}">
+        <div class="num-icon"><span class="num">${i+1}</span><span class="ico">${iconFor(c.sub_query)}</span></div>
+        <div class="label">${escapeHtml(truncate(c.sub_query, 64))}</div>
+        <div class="arrow-doc">${primaryDoc ? `→ <span class="doc-chip">${escapeHtml(primaryDoc)}</span>` : "→ no match"}</div>
+      </div>`;
+  }).join("");
+}
+function truncate(s, n) { return s && s.length > n ? s.slice(0, n - 1) + "…" : (s || ""); }
+
+// ---------------------------------------------------------------------
+// Briefing text + answer badges
+// ---------------------------------------------------------------------
+function renderBriefing() {
+  const box = document.getElementById("briefingText");
+  if (!lastClaims.length && !lastAnswer) {
+    box.innerHTML = `<div class="empty-note">No briefing yet — run a scenario or send a transcript fragment.</div>`;
+  } else if (lastSynthesisMode === "presentation") {
+    // Presentation-only turns (Query Suppression / No-Retrieval) reformat the
+    // PRIOR answer text in place without touching any claim — so the claims
+    // snapshot is stale here and would show the un-reformatted wording. The
+    // reformatted text lives only on the answer itself, so render that
+    // directly (preserving its bullet/line breaks) instead of the per-claim
+    // breakdown, with the carried-forward citations shown as one chip row.
+    const lines = (lastAnswer ? lastAnswer.text : "").split("\n").filter(l => l.trim());
+    const chips = (lastAnswer ? lastAnswer.citations || [] : []).map(cit => `<span class="cite-chip">${escapeHtml(cit)}</span>`).join("");
+    box.innerHTML = lines.map(l => `<div class="claim-line">${escapeHtml(l)}</div>`).join("")
+      + (chips ? `<div class="claim-line">${chips}</div>` : "");
+  } else {
+    box.innerHTML = lastClaims.map(c => {
+      if (c.supported) {
+        const chips = (c.citations || []).map(cit => `<span class="cite-chip">${escapeHtml(cit)}</span>`).join("");
+        return `<div class="claim-line">${escapeHtml(c.text)}<span class="chips">${chips}</span></div>`;
+      }
+      return `<div class="claim-line unsupported">⚠ ${escapeHtml(c.text)}</div>`;
+    }).join("");
+  }
+
+  const totalCitations = lastAnswer ? (lastAnswer.citations || []).length : 0;
+  document.getElementById("groundedBadge").textContent = `Grounded Response · ${totalCitations} citation${totalCitations === 1 ? "" : "s"}`;
+  document.getElementById("versionBadge").innerHTML = `<span class="active-dot"></span>v${lastAnswer ? lastAnswer.version : 0} · ACTIVE`;
+
+  const uBox = document.getElementById("uncertaintyBox");
+  if (lastAnswer && lastAnswer.uncertainty) {
+    uBox.style.display = "block";
+    uBox.textContent = "⚠ " + lastAnswer.uncertainty;
+  } else {
+    uBox.style.display = "none";
+  }
+}
+
+// ---------------------------------------------------------------------
+// Refinement diff
+// ---------------------------------------------------------------------
+function computeRefinementDiff(newClaims, chunkText) {
+  let found = null;
+  newClaims.forEach(c => {
+    const prev = claimHistory.get(c.claim_id);
+    if (prev && prev.version < c.version && prev.text !== c.text) {
+      found = {
+        claimId: c.claim_id, subQuery: c.sub_query,
+        prevText: prev.text, prevVersion: prev.version,
+        newText: c.text, newVersion: c.version,
+        chunkText: chunkText,
+      };
+    }
+    claimHistory.set(c.claim_id, { text: c.text, version: c.version, sub_query: c.sub_query, citations: c.citations });
+  });
+  if (found) refinementDiff = found;
+}
+function renderRefinementBox() {
+  const box = document.getElementById("refineBox");
+  if (!refinementDiff) { box.classList.remove("show"); return; }
+  box.classList.add("show");
+  document.getElementById("refinePrevVersion").textContent = refinementDiff.prevVersion;
+  document.getElementById("refinePrevText").textContent = refinementDiff.prevText;
+  document.getElementById("refineNewInfo").textContent = `"${refinementDiff.chunkText}"`;
+  document.getElementById("refineNewVersion").textContent = refinementDiff.newVersion;
+  document.getElementById("refineNewText").textContent = refinementDiff.newText;
+}
+
+// ---------------------------------------------------------------------
+// Evidence panel
+// ---------------------------------------------------------------------
+function renderEvidence() {
+  const list = document.getElementById("evidenceList");
+  const byCitation = new Map(); // citation -> {excerpts: Set, fromClaims: Set}
+
+  lastClaims.forEach(c => {
+    (c.evidence || []).forEach(e => {
+      if (!byCitation.has(e.citation)) byCitation.set(e.citation, new Set());
+      byCitation.get(e.citation).add(e.text);
+    });
+    // Citations without a captured evidence sentence still deserve a card.
+    (c.citations || []).forEach(cit => { if (!byCitation.has(cit)) byCitation.set(cit, new Set()); });
+  });
+
+  const usedCitations = new Set(lastAnswer ? (lastAnswer.citations || []) : []);
+  const citations = Array.from(byCitation.keys()).sort();
+  const docCount = new Set(citations.map(c => parseCitation(c).docId)).size;
+
+  document.getElementById("evidenceCounts").textContent =
+    `${lastClaims.length} intent${lastClaims.length === 1 ? "" : "s"} · ${docCount} doc${docCount === 1 ? "" : "s"} · ${citations.length} citation${citations.length === 1 ? "" : "s"}`;
+
+  if (!citations.length) {
+    list.innerHTML = `<div class="empty-note">Grounded source excerpts will appear here once an answer is synthesized.</div>`;
+    return;
+  }
+
+  list.innerHTML = citations.map((cit, i) => {
+    const { docId, sectionId } = parseCitation(cit);
+    const title = docTitle(docId);
+    const secTitle = sectionTitle(docId, sectionId);
+    const excerpts = Array.from(byCitation.get(cit));
+    const used = usedCitations.has(cit);
+    const otherSections = docIndex.has(docId)
+      ? Array.from(docIndex.get(docId).sections.entries()).filter(([sid]) => sid !== sectionId)
+      : [];
+    const otherSectionsHtml = otherSections.length
+      ? otherSections.map(([sid, t]) => `§${sid} ${escapeHtml(t)}`).join(" · ")
+      : "no other sections";
+    return `
+      <div class="evidence-card">
+        <div class="evidence-head">
+          <span class="doc-badge">📄</span>
+          <div class="evidence-titles">
+            <div class="doc-title">${escapeHtml(docId)} — ${escapeHtml(title)}</div>
+            <div class="section-title">§${escapeHtml(sectionId)} ${escapeHtml(secTitle)}</div>
+          </div>
+          ${used ? `<span class="used-check">✓ USED</span>` : ""}
+        </div>
+        ${excerpts.length ? `<div class="evidence-excerpt">"${escapeHtml(excerpts.join(" … "))}"</div>` : ""}
+        <div class="evidence-foot">
+          <button class="view-source-btn" onclick="toggleSource(${i})">View source</button>
+        </div>
+        <div class="also-in-doc" id="source-${i}"><b>Also in ${escapeHtml(docId)}:</b> ${otherSectionsHtml}</div>
+      </div>`;
+  }).join("");
+}
+function toggleSource(i) {
+  document.getElementById("source-" + i).classList.toggle("show");
+}
+
+// ---------------------------------------------------------------------
+// Observability
+// ---------------------------------------------------------------------
+function renderObservabilityTiles() {
+  const retrievalCount = telemetryRecord.retrieval_events ? telemetryRecord.retrieval_events.length : (lastClaims.length || 0);
+  const docCount = new Set(
+    lastClaims.flatMap(c => (c.citations || []).map(cit => parseCitation(cit).docId))
+  ).size;
+  document.getElementById("tileRetrieval").textContent = retrievalCount;
+  document.getElementById("tileIntents").textContent = lastClaims.length;
+  document.getElementById("tileDocs").textContent = docCount;
+  document.getElementById("tileCitations").textContent = lastAnswer ? (lastAnswer.citations || []).length : 0;
+  document.getElementById("tileVersion").textContent = lastAnswer ? lastAnswer.version : 0;
+  document.getElementById("tileLatency").textContent = lastProcessingMs != null ? `${lastProcessingMs} ms` : "—";
+}
+function toggleObsRaw() {
+  document.getElementById("obsRaw").classList.toggle("show");
+  document.getElementById("obsChevron").classList.toggle("open");
+}
+
+// ---------------------------------------------------------------------
+// Controls
+// ---------------------------------------------------------------------
+function runScenario(key) {
+  ws.send(JSON.stringify({ action: "run_scenario", scenario_key: key, speed: 0.35 }));
+}
+function resetSession() {
+  const newId = "web-" + Math.random().toString(36).slice(2, 10);
+  fullReset();
+  sessionId = newId;
+  if (ws) ws.close();
+  connect();
+}
+function sendManualChunk(isEnd) {
+  const input = document.getElementById("manualText");
+  const text = input.value.trim();
+  if (!text) return;
+  manualClock += 0.8;
+  ws.send(JSON.stringify({ action: "chunk", text, timestamp_s: manualClock, is_utterance_end: isEnd }));
+  input.value = "";
+  if (isEnd) manualClock = 0;
+}
+document.getElementById("manualText").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") sendManualChunk(e.shiftKey);
+});
+
+function fullReset() {
+  claimHistory = new Map();
+  lastClaims = [];
+  lastAnswer = null;
+  lastControllerDecision = null;
+  lastReason = "";
+  lastSynthesisMode = null;
+  lastProcessingMs = null;
+  refinementDiff = null;
+  telemetryRecord = {};
+
+  document.getElementById("stream").innerHTML = `<div class="empty-note">No transcript yet — run a scenario or send a fragment below.</div>`;
+  document.getElementById("scenarioDesc").textContent = "";
+  document.getElementById("intentSection").style.display = "none";
+  document.getElementById("briefingText").innerHTML = `<div class="empty-note">No briefing yet — run a scenario or send a transcript fragment.</div>`;
+  document.getElementById("uncertaintyBox").style.display = "none";
+  document.getElementById("refineBox").classList.remove("show");
+  document.getElementById("evidenceList").innerHTML = `<div class="empty-note">Grounded source excerpts will appear here once an answer is synthesized.</div>`;
+  document.getElementById("evidenceCounts").textContent = "0 intents · 0 docs · 0 citations";
+  document.getElementById("groundedBadge").textContent = "Grounded Response · 0 citations";
+  document.getElementById("versionBadge").innerHTML = `<span class="active-dot"></span>v0`;
+  document.getElementById("currentStateText").textContent = "WAIT — session idle";
+  document.getElementById("currentReasonText").textContent = "—";
+  document.querySelectorAll(".sm-node").forEach(el => el.classList.remove("done","active","refine","presentation"));
+  document.getElementById("telemetryRaw").textContent = "{}";
+  setBriefingStatus("Idle");
+  renderObservabilityTiles();
+}
+</script>
+
+</body>
+</html>

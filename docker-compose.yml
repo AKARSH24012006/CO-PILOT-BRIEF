@@ -1,0 +1,14 @@
+services:
+  copilotbrief:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # Set OPENAI_API_KEY here to enable optional LLM-polish synthesis.
+      # The system is fully functional and reproducible with it unset.
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

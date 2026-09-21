@@ -1,0 +1,23 @@
+# Core
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+websockets==13.1
+
+# Retrieval (sparse)
+rank-bm25==0.2.2
+
+# Retrieval (dense) — optional at runtime; pipeline falls back to TF-IDF if unavailable
+sentence-transformers==3.1.1
+scikit-learn==1.5.2
+numpy==1.26.4
+
+# Optional LLM-enhanced synthesis (disabled by default; extractive fallback needs no key)
+openai==1.51.0
+
+# Utilities
+python-dotenv==1.0.1
+
+# Testing
+pytest==8.3.3
+httpx==0.27.2
