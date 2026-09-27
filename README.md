@@ -48,6 +48,18 @@ pass on top of the same grounded, extractively-cited content (see
 [Synthesis backend](#4-session-aware-synthesis--refinement) below) —
 everything above works correctly with it unset.
 
+## Demo video
+
+[FILL IN: add your recorded demo video link here — YouTube or Drive, max 5
+minutes, required by the submission checklist]
+
+## Submission (Samsung PRISM GenAI Hackathon 3.0 — Theme 4)
+
+- Theme: Theme 4, Streaming Live RAG
+- Presentation: [`CopilotBrief_Submission.pptx`](CopilotBrief_Submission.pptx)
+- AI usage disclosure: [`LangAI3.0_AI_Disclosure.docx`](LangAI3.0_AI_Disclosure.docx)
+- Tag: `PRISM_GENAI_HACKATHON_Y2026`
+
 ## Why aviation dispatch
 
 Theme 4's own scenario language — compound utterances, late-arriving
