@@ -3,11 +3,12 @@
 (Reproducibility): `python run_demo.py` launches on a clean machine with no
 API key and no network access required, replays the three canonical
 scenarios from the Theme 4 spec (ported into the aviation-briefing
-domain), and prints the streaming trace, the final grounded answer, and
-the structured telemetry record for each.
+domain) plus one bonus scenario demonstrating refinement-target
+ambiguity handling, and prints the streaming trace, the final grounded
+answer, and the structured telemetry record for each.
 
 Usage:
-    python run_demo.py                      # all 3 scenarios, instant replay
+    python run_demo.py                      # all 4 scenarios, instant replay
     python run_demo.py --scenario multi_intent
     python run_demo.py --speed 1.0           # real-time playback (for recording)
     python run_demo.py --json                # machine-readable telemetry dump

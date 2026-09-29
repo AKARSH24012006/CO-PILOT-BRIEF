@@ -33,6 +33,22 @@ from .telemetry import TelemetryLogger
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
+# See config.NEGATION_MISMATCH_PENALTY for the reasoning. Matches whole-word
+# negation cues only ("not", not "notable"); "n't" is handled separately
+# since tokenization/regex word boundaries don't treat an apostrophe as a
+# letter. "no"/"not" are excluded when followed by a comparative + "than"
+# ("no less than 550 meters", "not more than 10 minutes") — that idiom
+# states a positive numeric floor/ceiling, not a negation of the query's
+# topic, and is extremely common in this kind of regulatory corpus text
+# (two of the four benchmark regressions caught in review were exactly
+# this false-positive pattern).
+_NEGATION_CUE_RE = re.compile(
+    r"\b(?:no|not)\b(?!\s+(?:less|lower|fewer|more|greater|earlier|later)\s+than)"
+    r"|\b(?:never|without|cannot|neither|nor)\b"
+    r"|n't",
+    re.IGNORECASE,
+)
+
 # A late-arriving constraint often doesn't just ADD information, it
 # SUPERSEDES a qualifier in the original question ("domestic" -> now
 # "international"). Carrying the stale qualifier into the delta-retrieval
@@ -102,6 +118,7 @@ class SynthesisEngine:
     def _build_claim(self, sub_query: SubQuery, claim_id: str, version: int) -> tuple[Claim, RetrievalEvent]:
         scored = self.retriever.search(sub_query.text, top_k=config.TOP_K_PER_SUBQUERY)
         query_tokens = _content_tokens(sub_query.text)
+        query_is_negated = bool(_NEGATION_CUE_RE.search(sub_query.text))
 
         best_sentences: list[tuple[float, str, str]] = []  # (score, sentence, citation)
         for sc in scored:  # inspect every retrieved candidate (already top_k-limited by the retriever)
@@ -110,6 +127,10 @@ class SynthesisEngine:
                 if len(sentence_tokens) < config.MIN_SENTENCE_CONTENT_TOKENS:
                     continue
                 score = _dice_coefficient(query_tokens, sentence_tokens)
+                if score > 0 and not query_is_negated and _NEGATION_CUE_RE.search(sentence):
+                    # Sentence asserts a negative the query didn't ask for —
+                    # demote rather than exclude (see config.NEGATION_MISMATCH_PENALTY).
+                    score *= config.NEGATION_MISMATCH_PENALTY
                 if score > 0:
                     best_sentences.append((score, sentence, sc.chunk.citation))
 
@@ -219,6 +240,11 @@ class SynthesisEngine:
         from . import taxonomy  # local import: avoids a module-level cycle risk
 
         changed_ids: list[str] = []
+        # (assumed target's sub_query, the constraint text applied to it) —
+        # populated only when the fallback below had 2+ open topics to
+        # choose between and no signal saying which one, so the guess is
+        # genuinely ambiguous rather than the routine single-thread case.
+        ambiguous_targets: list[tuple[str, str]] = []
 
         for csq in constraint_sub_queries:
             # Retrieve for the constraint ON ITS OWN first — this both tells
@@ -261,6 +287,14 @@ class SynthesisEngine:
                 # most-recently-active claim is the reasonable default
                 # target rather than treating it as an unrelated new fact.
                 target_claim_id = session.active_claim_order[-1]
+                if len(session.active_claim_order) > 1:
+                    # More than one open topic AND no signal which one this
+                    # constraint is about — the "most recent" guess is a
+                    # real guess here, not just the obviously-correct single
+                    # -thread case. Surface it instead of staying silent.
+                    assumed = session.claims.get(target_claim_id)
+                    if assumed is not None:
+                        ambiguous_targets.append((assumed.sub_query, csq.text))
 
             if target_claim_id is not None:
                 existing = session.claims[target_claim_id]
@@ -289,14 +323,26 @@ class SynthesisEngine:
                 changed_ids.append(probe_claim_id)
 
         text, citations, uncertainty = self._render(session)
+
+        refinement_ambiguity = None
+        if ambiguous_targets:
+            open_count = len(session.active_claim_order)
+            notes = [
+                f"applied \"{ctext}\" to \"{sq}\" (the most recently discussed of {open_count} open topics) "
+                "— no topic or citation match tied it to a specific one; say which topic you meant if that's wrong."
+                for sq, ctext in ambiguous_targets
+            ]
+            refinement_ambiguity = " ".join(notes)
+
         version_num = session.current_version + 1
         answer = AnswerVersion(
             version=version_num, text=text, citations=citations, uncertainty=uncertainty,
-            changed_claim_ids=changed_ids,
+            changed_claim_ids=changed_ids, refinement_ambiguity=refinement_ambiguity,
         )
         session.answer_versions.append(answer)
         self.telemetry.log(session, "answer_version", {
             "version": version_num, "changed_claim_ids": changed_ids, "uncertainty": uncertainty,
+            "refinement_ambiguity": refinement_ambiguity,
         }, timestamp_s=timestamp_s)
         return answer
 

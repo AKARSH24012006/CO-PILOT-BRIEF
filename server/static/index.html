@@ -234,6 +234,15 @@
     padding: 9px 12px; border-radius: 9px; background: rgba(255,180,84,.08); border: 1px solid rgba(255,180,84,.3);
     color: var(--warn); font-size: 12px; line-height: 1.5;
   }
+  /* Distinct from .uncertainty on purpose: amber = "the corpus doesn't
+     cover this", blue = "the corpus answer is solid, but which open topic
+     a late refinement applies to was a guess" — two different kinds of
+     not-sure, so they get two different signals rather than one generic
+     warning color. */
+  .ambiguity-note {
+    padding: 9px 12px; border-radius: 9px; background: rgba(91,157,255,.08); border: 1px solid rgba(91,157,255,.3);
+    color: var(--accent-2); font-size: 12px; line-height: 1.5;
+  }
 
   .refine-box { background: var(--panel-2); border: 1px solid rgba(255,180,84,.3); border-radius: 10px; padding: 12px; display: none; }
   .refine-box.show { display: flex; flex-direction: column; gap: 10px; }
@@ -340,6 +349,7 @@
   <button class="scenario-btn active" id="btn-multi_intent" onclick="runScenario('multi_intent')">▶ Multi-Intent</button>
   <button class="scenario-btn" id="btn-late_refinement" onclick="runScenario('late_refinement')">▶ Late Refinement</button>
   <button class="scenario-btn" id="btn-query_suppression" onclick="runScenario('query_suppression')">▶ Query Suppression</button>
+  <button class="scenario-btn" id="btn-ambiguous_refinement" onclick="runScenario('ambiguous_refinement')">▶ Ambiguity (bonus)</button>
 </div>
 
 <div class="layout">
@@ -396,6 +406,7 @@
         <div id="briefingText"><div class="empty-note">No briefing yet — run a scenario or send a transcript fragment.</div></div>
       </div>
       <div class="uncertainty" id="uncertaintyBox" style="display:none;"></div>
+      <div class="ambiguity-note" id="ambiguityBox" style="display:none;"></div>
       <div class="refine-box" id="refineBox">
         <div class="refine-title">⚡ Live Refinement — claim updated in place</div>
         <div class="refine-steps">
@@ -717,6 +728,14 @@ function renderBriefing() {
   } else {
     uBox.style.display = "none";
   }
+
+  const aBox = document.getElementById("ambiguityBox");
+  if (lastAnswer && lastAnswer.refinement_ambiguity) {
+    aBox.style.display = "block";
+    aBox.textContent = "🎯 Refinement target guessed — " + lastAnswer.refinement_ambiguity;
+  } else {
+    aBox.style.display = "none";
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -873,6 +892,7 @@ function fullReset() {
   document.getElementById("intentSection").style.display = "none";
   document.getElementById("briefingText").innerHTML = `<div class="empty-note">No briefing yet — run a scenario or send a transcript fragment.</div>`;
   document.getElementById("uncertaintyBox").style.display = "none";
+  document.getElementById("ambiguityBox").style.display = "none";
   document.getElementById("refineBox").classList.remove("show");
   document.getElementById("evidenceList").innerHTML = `<div class="empty-note">Grounded source excerpts will appear here once an answer is synthesized.</div>`;
   document.getElementById("evidenceCounts").textContent = "0 intents · 0 docs · 0 citations";

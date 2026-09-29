@@ -278,33 +278,53 @@ def ablation_controller_lead_time() -> dict:
 KNOWN_FAILURE_MODES = """
 ## Analyzed Edge-Case Failures
 
-**1. Negation-sensitive lexical grounding (mitigated, not solved).**
-Early in development, the query "diversion fuel reserve requirement domestic
-flight" + a refinement "the flight is now international" ranked the sentence
-*"No additional international reserve is required."* (Doc_03 §2 — the
-domestic rule's closing sentence) above the actual international rule
-(Doc_03 §3, the 45-minute reserve), because it lexically matches
-"international" and "reserve" densely in a very short sentence. Dice-coefficient
-scoring plus a minimum sentence-length floor (`MIN_SENTENCE_CONTENT_TOKENS`)
-fixed this specific case, but the extractive grounder has no semantic
-understanding of negation/polarity in general — a corpus sentence that
-lexically overlaps a query while asserting the *opposite* of what's true can
-still outrank the correct one. A production system would want an NLI-style
-entailment check on top of retrieval, not just lexical overlap.
+**1. Negation-sensitive lexical grounding — FIXED (heuristic, not solved in general).**
+Originally: the query "diversion fuel reserve requirement domestic flight" +
+a refinement "the flight is now international" could rank a short, lexically
+-dense NEGATIVE sentence (e.g. Doc_03 §2's closing line) above the actual
+rule that answers the question, purely because Dice-coefficient scoring
+rewards small denominators and has no notion of polarity. Reproduced live
+with query "does an international flight need additional reserve fuel
+beyond the standard reserve" — the wrong, off-topic negated sentence
+(Doc_03 §5) was returned as the entire answer, with no mention of the real
+45-minute international rule (Doc_03 §3) at all.
+Fix (`synthesis._NEGATION_CUE_RE` + `config.NEGATION_MISMATCH_PENALTY`): a
+grounding candidate sentence that asserts a negative the QUERY itself
+doesn't share gets its Dice score demoted (not excluded) by a configurable
+factor, so a non-negated sentence covering the same ground wins ties it
+previously lost. The idiom "no less than X" / "not more than X" (extremely
+common in regulatory text — e.g. "DH of no lower than 200 feet") is
+explicitly excluded from the negation match, since it states a positive
+numeric floor/ceiling, not a negation — two of the four benchmark
+regressions caught while building this fix were exactly that false
+positive. Regression-tested: `test_negated_sentence_does_not_outrank_the_actual_answer`
+and `test_regulatory_no_less_than_phrasing_is_not_treated_as_negation` in
+tests/test_synthesis.py. This is still a lexical heuristic, not an
+entailment model — a genuinely negative correct answer to a non-negated
+query is possible and would be under-penalized by the same rule; a
+production system would still want an NLI-style check on top.
 
-**2. Refinement-target ambiguity with multiple concurrent claims.**
+**2. Refinement-target ambiguity with multiple concurrent claims — now surfaced, not silent.**
 `synthesize_refinement` matches a late constraint to an existing claim by
 shared taxonomy topic or shared citation source document, falling back to
-"most recently active claim" when neither signal fires (a deliberately
-under-specified amendment like "the flight is now international" has no
-retrievable evidence on its own to compare against). This fallback is
+"most recently active claim" when neither signal fires. This fallback is
 correct for the common case (one open topic thread, per the spec's own
-Example 2) but would misfire in a session with two or more concurrently
-open, unrelated claims where the constraint's true target is NOT the most
-recent one — e.g. "...and also, use the B737 numbers for the crosswind
-question" arriving after three other topics have since been discussed. The
-system has no clarification-request path for this ambiguity; it silently
-picks a target rather than asking.
+Example 2), but previously misfired silently in a session with 2+
+concurrently open, unrelated claims where the constraint's true target
+might not be the most recent one.
+Fix: when the fallback fires with 2+ open claims (a genuine guess, not the
+single-thread case), the resulting `AnswerVersion.refinement_ambiguity`
+field is now populated naming which topic the system assumed and how many
+open topics it chose between — surfaced live in the dashboard (the blue
+"Refinement target guessed" note) and in the WebSocket `answer` payload,
+not just logged. It does not yet ask a clarifying question back (that
+would need a conversational turn-taking mechanism this pipeline doesn't
+have), but a downstream consumer — the dashboard, or a real dispatcher UI —
+can now show the uncertainty instead of it being invisible. See the bonus
+`ambiguous_refinement` demo scenario (`simulate/scenarios.py`) and
+`test_refinement_target_ambiguity_is_surfaced_not_silent` /
+`test_refinement_ambiguity_not_flagged_with_a_single_open_topic` in
+tests/test_synthesis.py.
 
 **3. TF-IDF fallback discrimination on a small, single-domain corpus.**
 When the sentence-transformers dense encoder is unavailable (no cached

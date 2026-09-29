@@ -93,10 +93,35 @@ SCENARIO_3_QUERY_SUPPRESSION = Scenario(
 )
 
 
+SCENARIO_4_AMBIGUOUS_REFINEMENT = Scenario(
+    key="ambiguous_refinement",
+    title="Bonus — Refinement-Target Ambiguity, Surfaced Not Silent",
+    description=(
+        "Two unrelated topics are opened in one multi-intent utterance. A "
+        "later refinement carries no topic or citation signal tying it to "
+        "either one, so the engine still has to guess which claim it "
+        "modifies (most-recently-active, per Example 2) — but now says so "
+        "explicitly instead of silently picking one (see "
+        "benchmark/report.md edge case #2)."
+    ),
+    session_id="demo-ambiguous-refinement",
+    turns=[
+        Turn(chunks=[
+            (0.0, "I need the crosswind limit for the A320 on a dry runway,"),
+            (0.9, "and the final reserve fuel required for a domestic sector."),
+        ]),
+        Turn(chunks=[
+            (6.0, "Actually, use the updated numbers."),
+        ]),
+    ],
+)
+
+
 ALL_SCENARIOS: list[Scenario] = [
     SCENARIO_1_MULTI_INTENT,
     SCENARIO_2_LATE_REFINEMENT,
     SCENARIO_3_QUERY_SUPPRESSION,
+    SCENARIO_4_AMBIGUOUS_REFINEMENT,
 ]
 
 

@@ -54,6 +54,22 @@ MIN_SENTENCE_CONTENT_TOKENS = 6  # ignore very short sentences as grounding cand
 # can score deceptively high on Dice purely by having a small denominator, without saying much
 UNCERTAINTY_LABEL = "insufficient corpus evidence"
 
+# A short, lexically-dense NEGATIVE sentence ("No additional international
+# reserve is required.") can out-score the genuinely relevant, longer
+# sentence that actually answers the question, purely because Dice rewards
+# small denominators (see benchmark/report.md, edge case #1). This is a
+# lexical-overlap grounder, not an entailment model, so it can't tell "the
+# corpus asserts X" from "the corpus asserts the opposite of X" — the best
+# it can do cheaply is demote a candidate sentence whose negation the QUERY
+# itself doesn't share, on the theory that a query asking a plain question
+# ("do we need X") is usually looking for the rule that applies, not a
+# negative aside about a DIFFERENT case. This is a heuristic, not a fix: a
+# genuinely negative correct answer to a non-negated query is still
+# possible and would be under-penalized here too. NEGATION_MISMATCH_PENALTY
+# < 1.0 softens rather than excludes, so a negated sentence can still win
+# when nothing else comes close.
+NEGATION_MISMATCH_PENALTY = 0.4
+
 # --- Synthesis backend -----------------------------------------------------
 # Extractive template synthesis is the default and needs no network access
 # or API key, which keeps the system reproducible on a clean machine (Gate

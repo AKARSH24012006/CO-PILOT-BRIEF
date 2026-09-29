@@ -318,14 +318,21 @@ simulate/               scenario fixtures + stream replay harness
 server/                 FastAPI + WebSocket live demo, static/index.html frontend
 tests/                  25 pytest tests (component + end-to-end)
 benchmark/              held-out eval set, gates G2-G6, 2 ablations, report.md
-run_demo.py             single-command CLI: replays the 3 canonical scenarios
+run_demo.py             single-command CLI: replays the 3 canonical scenarios + 1 bonus
 Dockerfile, docker-compose.yml
 ```
 
 ## Known limitations
 
 See `benchmark/report.md` → "Analyzed Edge-Case Failures" for three
-concrete, reproduced failure modes (negation-sensitive lexical grounding,
-refinement-target ambiguity across multiple concurrent claims, and TF-IDF
-fallback discrimination on a small corpus) with the mitigations already in
-place and what would still be needed for a production system.
+concrete, reproduced failure modes and what's been done about each:
+
+1. **Negation-sensitive lexical grounding — fixed** (heuristic demotion of
+   negated sentences the query doesn't ask for, with regression tests;
+   still not a full entailment model).
+2. **Refinement-target ambiguity across multiple concurrent claims — now
+   surfaced, not silent** (the dashboard shows which topic was assumed and
+   how many were open, instead of guessing invisibly; see the bonus
+   "Ambiguity" demo scenario). Still doesn't ask a clarifying question back.
+3. **TF-IDF fallback discrimination on a small corpus** — unresolved absent
+   network access to cache a real sentence-embedding model.

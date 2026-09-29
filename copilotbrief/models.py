@@ -118,6 +118,15 @@ class AnswerVersion:
     uncertainty: Optional[str]
     created_at_s: float = field(default_factory=time.time)
     changed_claim_ids: list[str] = field(default_factory=list)
+    # Set only when synthesize_refinement had to fall back to "most
+    # recently active claim" with 2+ open topics and no topic/citation
+    # signal telling it which one a late constraint actually modifies (see
+    # benchmark/report.md edge case #2). Kept separate from `uncertainty`
+    # (which is about corpus COVERAGE) because this is about SESSION
+    # ambiguity — the corpus fully supports the answer given, the system
+    # just isn't certain the answer was applied to the topic the user
+    # meant, and says so instead of silently guessing.
+    refinement_ambiguity: Optional[str] = None
 
 
 @dataclass

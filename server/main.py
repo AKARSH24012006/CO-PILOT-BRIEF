@@ -46,6 +46,7 @@ def _answer_payload(answer) -> dict | None:
         "citations": answer.citations,
         "uncertainty": answer.uncertainty,
         "changed_claim_ids": answer.changed_claim_ids,
+        "refinement_ambiguity": answer.refinement_ambiguity,
     }
 
 
