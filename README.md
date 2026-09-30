@@ -50,8 +50,9 @@ everything above works correctly with it unset.
 
 ## Demo video
 
-[FILL IN: add your recorded demo video link here — YouTube or Drive, max 5
-minutes, required by the submission checklist]
+Watch the 3.5-minute narrated demo: [Google Drive](https://drive.google.com/file/d/1RJQC7AeVedlukw_frnN3c7o57puREqi4/view?usp=sharing)
+
+**Team GEN CODERS** (SRM Institute of Science and Technology): Shashank Bhadoriya (Team Representative), Akarsh Nehra, Anirudh Verma, Abhay Goyal
 
 ## Submission (Samsung PRISM GenAI Hackathon 3.0 — Theme 4)
 
